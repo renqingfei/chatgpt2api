@@ -215,11 +215,6 @@ export type RegisterConfig = {
   target_quota: number;
   target_available: number;
   check_interval: number;
-  cpa_auto_import: {
-    enabled: boolean;
-    base_url: string;
-    secret_key: string;
-  };
   stats: {
     job_id?: string;
     success: number;
@@ -303,40 +298,6 @@ export async function refreshAccounts(accessTokens: string[]) {
     method: "POST",
     body: { access_tokens: accessTokens },
   });
-}
-
-function downloadBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-function filenameFromContentDisposition(value?: string) {
-  if (!value) {
-    return "";
-  }
-  const utf8Match = value.match(/filename\*=UTF-8''([^;]+)/i);
-  if (utf8Match?.[1]) {
-    return decodeURIComponent(utf8Match[1]);
-  }
-  const match = value.match(/filename="?([^";]+)"?/i);
-  return match?.[1] ?? "";
-}
-
-export async function exportCpaAccounts(accessTokens: string[]) {
-  const response = await request.post(
-    "/api/accounts/export/cpa",
-    { access_tokens: accessTokens },
-    { responseType: "blob" },
-  );
-  const blob = response.data as Blob;
-  const filename = filenameFromContentDisposition(response.headers["content-disposition"]) || `cpa-accounts-${Date.now()}.zip`;
-  downloadBlob(blob, filename);
 }
 
 export async function updateAccount(

@@ -91,6 +91,16 @@ class AccountService:
             if int(self._image_inflight.get(token, 0)) < max_concurrency
         ]
 
+    def _list_text_candidate_tokens(self, excluded_tokens: set[str] | None = None) -> list[str]:
+        excluded = set(excluded_tokens or set())
+        return [
+            token
+            for account in self._accounts.values()
+            if account.get("status") not in {"禁用", "异常"}
+               and (token := account.get("access_token") or "")
+               and token not in excluded
+        ]
+
     def _acquire_next_candidate_token(self, excluded_tokens: set[str] | None = None) -> str:
         with self._image_slot_condition:
             while True:
@@ -130,20 +140,20 @@ class AccountService:
             self.release_image_slot(access_token)
 
     def get_text_access_token(self, excluded_tokens: set[str] | None = None) -> str:
-        excluded = set(excluded_tokens or set())
         with self._lock:
-            candidates = [
-                token
-                for account in self._accounts.values()
-                if account.get("status") not in {"禁用", "异常"}
-                   and (token := account.get("access_token") or "")
-                   and token not in excluded
-            ]
+            candidates = self._list_text_candidate_tokens(excluded_tokens)
             if not candidates:
                 return ""
             access_token = candidates[self._index % len(candidates)]
             self._index += 1
             return access_token
+
+    def peek_text_access_token(self, excluded_tokens: set[str] | None = None) -> str:
+        with self._lock:
+            candidates = self._list_text_candidate_tokens(excluded_tokens)
+            if not candidates:
+                return ""
+            return candidates[self._index % len(candidates)]
 
     def mark_text_used(self, access_token: str) -> None:
         if not access_token:

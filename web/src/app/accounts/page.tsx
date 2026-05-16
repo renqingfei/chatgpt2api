@@ -42,7 +42,6 @@ import {
 } from "@/components/ui/select";
 import {
   deleteAccounts,
-  exportCpaAccounts,
   fetchAccounts,
   refreshAccounts,
   updateAccount,
@@ -180,7 +179,6 @@ function AccountsPageContent() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [isExportingCpa, setIsExportingCpa] = useState(false);
 
   const loadAccounts = async (silent = false) => {
     if (!silent) {
@@ -315,24 +313,6 @@ function AccountsPageContent() {
     }
   };
 
-  const handleExportCpaAccounts = async (accessTokens: string[], scope: "全部" | "选中") => {
-    if (accessTokens.length === 0) {
-      toast.error(scope === "全部" ? "没有可导出的账户" : "请先选择要导出的账户");
-      return;
-    }
-
-    setIsExportingCpa(true);
-    try {
-      await exportCpaAccounts(accessTokens);
-      toast.success(`已导出 ${accessTokens.length} 个账户的 CPA zip`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "导出 CPA 失败";
-      toast.error(message);
-    } finally {
-      setIsExportingCpa(false);
-    }
-  };
-
   const openEditDialog = (account: Account) => {
     setEditingAccount(account);
     setEditStatus(account.status);
@@ -398,22 +378,13 @@ function AccountsPageContent() {
             一键刷新所有账号信息和额度
           </Button>
           <AccountImportDialog
-            disabled={isLoading || isRefreshing || isDeleting || isExportingCpa}
+            disabled={isLoading || isRefreshing || isDeleting}
             onImported={(items) => {
               setAccounts(items);
               setSelectedIds([]);
               setPage(1);
             }}
           />
-          <Button
-            variant="outline"
-            className="h-10 rounded-xl border-stone-200 bg-white/80 px-4 text-stone-700 hover:bg-white"
-            onClick={() => void handleExportCpaAccounts(accounts.map((item) => item.access_token), "全部")}
-            disabled={accounts.length === 0 || isExportingCpa}
-          >
-            {isExportingCpa ? <LoaderCircle className="size-4 animate-spin" /> : <Download className="size-4" />}
-            导出 CPA
-          </Button>
           <Button
             variant="outline"
             className="h-10 rounded-xl border-stone-200 bg-white/80 px-4 text-stone-700 hover:bg-white"
@@ -590,15 +561,6 @@ function AccountsPageContent() {
                 >
                   {isRefreshing ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
                   刷新选中账号信息和额度
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="h-8 rounded-lg px-3 text-stone-500 hover:bg-stone-100"
-                  onClick={() => void handleExportCpaAccounts(selectedTokens, "选中")}
-                  disabled={selectedTokens.length === 0 || isExportingCpa}
-                >
-                  {isExportingCpa ? <LoaderCircle className="size-4 animate-spin" /> : <Download className="size-4" />}
-                  导出选中 CPA
                 </Button>
                 <Button
                   variant="ghost"

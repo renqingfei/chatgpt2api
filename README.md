@@ -80,13 +80,15 @@ environment:
 
 - 兼容 `POST /v1/images/generations` 图片生成接口
 - 兼容 `POST /v1/images/edits` 图片编辑接口
-- 兼容面向图片场景的 `POST /v1/chat/completions`
-- 兼容面向图片场景的 `POST /v1/responses`
-- `GET /v1/models` 返回 `gpt-image-2`、`codex-gpt-image-2`、`auto`、`gpt-5`、`gpt-5-1`、`gpt-5-2`、`gpt-5-3`、`gpt-5-3-mini`、
-  `gpt-5-mini`
+- 兼容文本对话与图片场景的 `POST /v1/chat/completions`
+- 兼容文本对话与图片场景的 `POST /v1/responses`
+- 可作为 ChatGPT Web 上游中转站使用：本地号池里的 `access_token` 会直接驱动 `/backend-api/conversation`
+- 内置 `/chat/` SSE 对话测试页，可直接验证 Base URL、API Key、模型和流式输出是否可用
+- `GET /v1/models` 优先用本地号池账号探测 ChatGPT Web 可用模型，并补充本项目的图片模型别名
 - 支持通过 `n` 返回多张生成结果
 - 支持 Codex 中的画图接口逆向，仅 `Plus` / `Team` / `Pro` 订阅可用，模型别名为 `codex-gpt-image-2`，如有需要可自行在其他场景映射回
   `gpt-image-2`，用于和官网画图区分；也就意味着同一账号会同时有官网和 Codex 两份生图额度
+- 注意：注册所得账号是 ChatGPT Web / Platform token，不等于 Codex OAuth 账号，不能直接当作 Codex OAuth 账号使用。
 
 ### 在线画图功能
 
@@ -100,6 +102,7 @@ environment:
 ### 号池管理功能
 
 - 自动刷新账号邮箱、类型、额度和恢复时间
+- 轮询可用账号执行文本对话
 - 轮询可用账号执行图片生成与图片编辑
 - 遇到 Token 失效类错误时自动剔除无效 Token
 - 定时检查限流账号并自动刷新
@@ -143,11 +146,21 @@ New Api 接入：
 Authorization: Bearer <auth-key>
 ```
 
+外部客户端按 OpenAI-compatible 方式接入：
+
+| 字段 | 填法 |
+|:--|:--|
+| Base URL | 项目地址后加 `/v1`，例如 `http://127.0.0.1:3000/v1` |
+| API Key | 本项目登录密钥，或「设置 → 用户 Key」里创建的用户密钥 |
+| Model | 文本建议先填 `auto`，实际可用模型以 `/v1/models` 和 `/chat/` 测试页结果为准 |
+
+也可以直接打开 `/chat/` 页面做 SSE 流式对话测试。
+
 <details>
 <summary><code>GET /v1/models</code></summary>
 <br>
 
-返回当前暴露的图片模型列表。
+返回当前暴露的模型列表。服务端会优先使用本地号池里的可用文本账号探测 ChatGPT Web 模型；如果号池为空或探测失败，则回落到匿名模型列表。
 
 ```bash
 curl http://localhost:8000/v1/models \
@@ -160,8 +173,8 @@ curl http://localhost:8000/v1/models \
 
 | 字段   | 说明                                                                                                         |
 |:-----|:-----------------------------------------------------------------------------------------------------------|
-| 返回模型 | `gpt-image-2`、`codex-gpt-image-2`、`auto`、`gpt-5`、`gpt-5-1`、`gpt-5-2`、`gpt-5-3`、`gpt-5-3-mini`、`gpt-5-mini` |
-| 接入场景 | 可接入 Cherry Studio、New API 等上游或客户端                                                                          |
+| 返回模型 | 以当前号池账号从 ChatGPT Web 返回的模型为准，并追加 `gpt-image-2`、`codex-gpt-image-2` 等本项目图片模型别名 |
+| 接入场景 | 可作为 OpenAI-compatible ChatGPT Web relay 接入 Cherry Studio、New API 等上游或客户端                      |
 
 <br>
 </details>

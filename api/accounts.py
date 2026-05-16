@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
-from io import BytesIO
-
 from fastapi import APIRouter, Header, HTTPException
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from services.auth_service import auth_service
@@ -18,7 +14,6 @@ from api.support import (
     sanitize_sub2api_servers,
 )
 from services.account_service import account_service
-from services.cpa_export_service import build_cpa_zip
 from services.cpa_service import cpa_config, cpa_import_service, list_remote_files
 from services.sub2api_service import (
     list_remote_accounts as sub2api_list_remote_accounts,
@@ -72,10 +67,6 @@ class CPAPoolUpdateRequest(BaseModel):
 
 class CPAImportRequest(BaseModel):
     names: list[str] = Field(default_factory=list)
-
-
-class CPAExportRequest(BaseModel):
-    access_tokens: list[str] = Field(default_factory=list)
 
 
 class Sub2APIServerCreateRequest(BaseModel):
@@ -201,25 +192,6 @@ def create_router() -> APIRouter:
         if account is None:
             raise HTTPException(status_code=404, detail={"error": "account not found"})
         return {"item": account, "items": account_service.list_accounts()}
-
-    @router.post("/api/accounts/export/cpa")
-    async def export_cpa_accounts(body: CPAExportRequest, authorization: str | None = Header(default=None)):
-        require_admin(authorization)
-        access_tokens = [str(token or "").strip() for token in body.access_tokens if str(token or "").strip()]
-        accounts = account_service.list_accounts()
-        if access_tokens:
-            wanted = set(access_tokens)
-            accounts = [account for account in accounts if account.get("access_token") in wanted]
-        if not accounts:
-            raise HTTPException(status_code=400, detail={"error": "没有可导出的账户"})
-
-        payload = await run_in_threadpool(build_cpa_zip, accounts)
-        filename = f"cpa-accounts-{datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
-        return StreamingResponse(
-            BytesIO(payload),
-            media_type="application/zip",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-        )
 
     @router.get("/api/cpa/pools")
     async def list_cpa_pools(authorization: str | None = Header(default=None)):

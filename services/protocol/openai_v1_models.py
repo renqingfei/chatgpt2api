@@ -2,12 +2,19 @@ from __future__ import annotations
 
 from typing import Any
 
+from services.account_service import account_service
 from services.openai_backend_api import OpenAIBackendAPI
 from utils.helper import IMAGE_MODELS
 
 
 def list_models() -> dict[str, Any]:
-    result = OpenAIBackendAPI().list_models()
+    access_token = account_service.peek_text_access_token()
+    try:
+        result = OpenAIBackendAPI(access_token=access_token).list_models()
+    except Exception:
+        if not access_token:
+            raise
+        result = OpenAIBackendAPI().list_models()
     data = result.get("data")
     if not isinstance(data, list):
         return result

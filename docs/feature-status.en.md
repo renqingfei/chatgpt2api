@@ -6,9 +6,10 @@
 |:----------------------------------------|:--:|:--------------------------------------------------------------|
 | OpenAI 兼容 `POST /v1/images/generations` | ✅  | 已支持，用于图片生成，并可通过 `n` 返回多张图片。 |
 | OpenAI 兼容 `POST /v1/images/edits` | ✅  | 已支持，可上传图片进行编辑。 |
-| 面向图片工作流的 `POST /v1/chat/completions` | ✅  | 已支持图片相关请求。 |
-| 面向图片工作流的 `POST /v1/responses` | ✅  | 已支持图片生成工具调用。 |
-| `GET /v1/models` 接口 | ✅  | 当前返回 `gpt-image-2`、`codex-gpt-image-2`、`auto`、`gpt-5`、`gpt-5-1`、`gpt-5-2`、`gpt-5-3`、`gpt-5-3-mini`、`gpt-5-mini`。 |
+| OpenAI 兼容 `POST /v1/chat/completions` | ✅  | 已支持文本对话和图片相关请求，文本链路直接使用本地号池里的 ChatGPT Web token。 |
+| OpenAI 兼容 `POST /v1/responses` | ✅  | 已支持文本对话和图片生成工具调用，文本链路直接使用本地号池里的 ChatGPT Web token。 |
+| `/chat/` SSE 对话测试页 | ✅  | 已支持在页面里配置 Base URL、API Key、Model，并直接流式调用 `/v1/chat/completions`。 |
+| `GET /v1/models` 接口 | ✅  | 优先使用本地号池账号探测 ChatGPT Web 可用模型，号池为空或探测失败时回落到匿名模型列表，并追加本项目图片模型别名。 |
 | 同时生成多张图片 | ✅  | 已支持，后端与前端都可进行多图生成。 |
 | 前端图片工作台 | ✅  | 已支持图片生成、图片编辑、模型选择、历史记录与查看大图。 |
 | 前端图片输入 / 参考图交互 | ✅  | 已支持参考图上传、预览、移除和编辑模式工作流。 |

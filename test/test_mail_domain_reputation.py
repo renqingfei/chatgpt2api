@@ -86,7 +86,6 @@ class MailDomainReputationTests(unittest.TestCase):
             mock.patch.object(openai_register.domain_reputation, "store", store),
             mock.patch.object(openai_register.account_service, "add_accounts"),
             mock.patch.object(openai_register.account_service, "refresh_accounts"),
-            mock.patch.object(openai_register, "push_cpa_auth_file", return_value={"ok": True, "skipped": True}),
             mock.patch.object(openai_register.PlatformRegistrar, "close"),
         ):
             with mock.patch.object(openai_register.PlatformRegistrar, "register", return_value={

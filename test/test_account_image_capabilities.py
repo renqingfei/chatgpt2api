@@ -66,6 +66,18 @@ class AccountCapabilityTests(unittest.TestCase):
             self.assertEqual(updated["status"], "正常")
             self.assertTrue(updated["image_quota_unknown"])
 
+    def test_peek_text_access_token_uses_available_text_pool_without_advancing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            service = AccountService(JSONStorageBackend(Path(tmp_dir) / "accounts.json"))
+            service.add_accounts(["disabled-token", "ready-token"])
+            service.update_account("disabled-token", {"status": "禁用"})
+
+            first = service.peek_text_access_token()
+            second = service.peek_text_access_token()
+
+            self.assertEqual(first, "ready-token")
+            self.assertEqual(second, "ready-token")
+
 
 class TokenLogTests(unittest.TestCase):
     def test_anonymize_token_hides_raw_value(self) -> None:
