@@ -79,6 +79,26 @@ class HeroSmsServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(HeroSmsError, "BAD_KEY"):
             client.get_balance()
 
+    def test_resolve_activation_reuses_existing_id_and_phone_without_buying_number(self):
+        from services.hero_sms_service import resolve_activation
+
+        session = FakeSession([])
+        activation = resolve_activation(
+            {
+                "api_key": "hero-key",
+                "service": "dr",
+                "country": 10,
+                "operator": "any",
+                "reuse_activation_id": "12345",
+                "reuse_phone": "84901234567",
+            },
+            session=session,
+        )
+
+        self.assertEqual(activation.activation_id, "12345")
+        self.assertEqual(activation.phone, "84901234567")
+        self.assertEqual(session.calls, [])
+
 
 if __name__ == "__main__":
     unittest.main()

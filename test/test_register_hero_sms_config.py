@@ -12,12 +12,12 @@ CODEX_POC = ROOT / "scripts" / "codex_oauth_poc.py"
 
 class RegisterHeroSmsConfigTests(unittest.TestCase):
     def test_default_register_config_contains_hero_sms_defaults(self) -> None:
-        from services.register_service import _default_config
+        from services.register_service import _normalize_hero_sms
 
-        cfg = _default_config()
+        hero_sms = _normalize_hero_sms({})
 
         self.assertEqual(
-            cfg["hero_sms"],
+            hero_sms,
             {
                 "enabled": False,
                 "api_key": "",
@@ -26,6 +26,8 @@ class RegisterHeroSmsConfigTests(unittest.TestCase):
                 "operator": "any",
                 "wait_timeout": 1200,
                 "poll_interval": 5,
+                "reuse_activation_id": "",
+                "reuse_phone": "",
             },
         )
 
@@ -42,6 +44,8 @@ class RegisterHeroSmsConfigTests(unittest.TestCase):
                     "operator": "",
                     "wait_timeout": "0",
                     "poll_interval": "2",
+                    "reuse_activation_id": "  12345 ",
+                    "reuse_phone": " +84901234567 ",
                 }
             }
         )
@@ -53,6 +57,8 @@ class RegisterHeroSmsConfigTests(unittest.TestCase):
         self.assertEqual(cfg["hero_sms"]["operator"], "any")
         self.assertEqual(cfg["hero_sms"]["wait_timeout"], 1200)
         self.assertEqual(cfg["hero_sms"]["poll_interval"], 2)
+        self.assertEqual(cfg["hero_sms"]["reuse_activation_id"], "12345")
+        self.assertEqual(cfg["hero_sms"]["reuse_phone"], "+84901234567")
 
     def test_register_ui_exposes_hero_sms_fields(self) -> None:
         source = REGISTER_CARD.read_text(encoding="utf-8")
@@ -62,6 +68,8 @@ class RegisterHeroSmsConfigTests(unittest.TestCase):
         self.assertIn("config.hero_sms.api_key", source)
         self.assertIn("config.hero_sms.country", source)
         self.assertIn("config.hero_sms.operator", source)
+        self.assertIn("config.hero_sms.reuse_activation_id", source)
+        self.assertIn("config.hero_sms.reuse_phone", source)
 
     def test_register_store_saves_hero_sms_config(self) -> None:
         source = SETTINGS_STORE.read_text(encoding="utf-8")

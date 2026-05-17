@@ -129,3 +129,21 @@ class HeroSmsClient:
 
     def cancel(self, activation_id: str) -> str:
         return self.set_status(activation_id, 8)
+
+
+def resolve_activation(config: dict, *, session: Any | None = None) -> HeroSmsActivation:
+    activation_id = str(config.get("reuse_activation_id") or "").strip()
+    phone = str(config.get("reuse_phone") or "").strip()
+    if activation_id and phone:
+        return HeroSmsActivation(activation_id=activation_id, phone=phone, raw="REUSE_ACTIVATION")
+
+    client = HeroSmsClient(
+        str(config.get("api_key") or "").strip(),
+        session=session,
+        poll_interval=float(config.get("poll_interval") or 5),
+    )
+    return client.get_number(
+        service=str(config.get("service") or OPENAI_SERVICE_CODE).strip() or OPENAI_SERVICE_CODE,
+        country=int(config.get("country") or 16),
+        operator=str(config.get("operator") or "any").strip() or "any",
+    )

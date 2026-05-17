@@ -52,7 +52,7 @@ def _positive_int(value, default: int) -> int:
 
 
 def _normalize_hero_sms(raw: object) -> dict:
-    defaults = dict(openai_register.config.get("hero_sms") or {})
+    defaults = dict(getattr(openai_register, "default_hero_sms_config", {}) or {})
     source = raw if isinstance(raw, dict) else {}
     service = str(source.get("service") or defaults.get("service") or "dr").strip().lower() or "dr"
     operator = str(source.get("operator") or defaults.get("operator") or "any").strip().lower() or "any"
@@ -64,6 +64,8 @@ def _normalize_hero_sms(raw: object) -> dict:
         "operator": operator,
         "wait_timeout": _positive_int(source.get("wait_timeout"), int(defaults.get("wait_timeout") or 1200)),
         "poll_interval": _positive_int(source.get("poll_interval"), int(defaults.get("poll_interval") or 5)),
+        "reuse_activation_id": str(source.get("reuse_activation_id") or defaults.get("reuse_activation_id") or "").strip(),
+        "reuse_phone": str(source.get("reuse_phone") or defaults.get("reuse_phone") or "").strip(),
     }
 
 

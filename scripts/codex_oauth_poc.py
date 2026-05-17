@@ -38,11 +38,14 @@ def _announce_hero_sms_config() -> None:
         return
     if not str(hero_sms.get("api_key") or "").strip():
         raise SystemExit("HeroSMS is enabled but api_key is empty in /register config")
+    reuse_activation_id = str(hero_sms.get("reuse_activation_id") or "").strip()
+    reuse_phone = str(hero_sms.get("reuse_phone") or "").strip()
     print(
         "HeroSMS enabled: "
         f"service={hero_sms.get('service') or 'dr'}, "
         f"country={hero_sms.get('country') or 16}, "
         f"operator={hero_sms.get('operator') or 'any'}"
+        f"{', reuse_activation_id=' + reuse_activation_id if reuse_activation_id and reuse_phone else ''}"
     )
 
 

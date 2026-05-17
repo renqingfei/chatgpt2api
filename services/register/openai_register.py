@@ -42,12 +42,28 @@ config = {
         "operator": "any",
         "wait_timeout": 1200,
         "poll_interval": 5,
+        "reuse_activation_id": "",
+        "reuse_phone": "",
     },
 }
+default_hero_sms_config = {
+    "enabled": False,
+    "api_key": "",
+    "service": "dr",
+    "country": 16,
+    "operator": "any",
+    "wait_timeout": 1200,
+    "poll_interval": 5,
+    "reuse_activation_id": "",
+    "reuse_phone": "",
+}
+
 register_config_file = base_dir.parents[1] / "data" / "register.json"
 try:
     saved_config = json.loads(register_config_file.read_text(encoding="utf-8"))
-    config.update({key: saved_config[key] for key in ("mail", "proxy", "total", "threads", "hero_sms") if key in saved_config})
+    config.update({key: saved_config[key] for key in ("mail", "proxy", "total", "threads") if key in saved_config})
+    if isinstance(saved_config.get("hero_sms"), dict):
+        config["hero_sms"] = {**default_hero_sms_config, **saved_config["hero_sms"]}
 except Exception:
     pass
 

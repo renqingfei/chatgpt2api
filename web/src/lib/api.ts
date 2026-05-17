@@ -217,6 +217,8 @@ export type RegisterConfig = {
     operator: string;
     wait_timeout: number;
     poll_interval: number;
+    reuse_activation_id: string;
+    reuse_phone: string;
   };
   proxy: string;
   total: number;

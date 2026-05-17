@@ -139,7 +139,7 @@ export function RegisterCard() {
               <div className="space-y-2">
                 <label className="text-sm text-stone-700">国家 ID</label>
                 <Input value={String(config.hero_sms.country || "")} onChange={(event) => setHeroSmsField("country", event.target.value)} placeholder="16" className="h-10 rounded-xl border-stone-200 bg-white" disabled={config.enabled} />
-                <p className="text-[11px] text-stone-400">常用：16 英国，187 美国，36 加拿大。</p>
+                <p className="text-[11px] text-stone-400">常用：10 越南，16 英国，187 美国，36 加拿大。</p>
               </div>
               <div className="space-y-2">
                 <label className="text-sm text-stone-700">运营商</label>
@@ -152,6 +152,14 @@ export function RegisterCard() {
               <div className="space-y-2">
                 <label className="text-sm text-stone-700">短信轮询间隔（秒）</label>
                 <Input value={String(config.hero_sms.poll_interval || "")} onChange={(event) => setHeroSmsField("poll_interval", event.target.value)} placeholder="5" className="h-10 rounded-xl border-stone-200 bg-white" disabled={config.enabled} />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm text-stone-700">复用 Activation ID</label>
+                <Input value={config.hero_sms.reuse_activation_id} onChange={(event) => setHeroSmsField("reuse_activation_id", event.target.value)} placeholder="已购买号码的 id，可留空" className="h-10 rounded-xl border-stone-200 bg-white font-mono text-xs" disabled={config.enabled} />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm text-stone-700">复用手机号</label>
+                <Input value={config.hero_sms.reuse_phone} onChange={(event) => setHeroSmsField("reuse_phone", event.target.value)} placeholder="已购买号码；Activation ID 和手机号都填时不会再买新号" className="h-10 rounded-xl border-stone-200 bg-white font-mono text-xs" disabled={config.enabled} />
               </div>
             </div>
           </div>
