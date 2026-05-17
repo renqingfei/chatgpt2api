@@ -112,6 +112,21 @@ class HeroSmsClient:
             operator=operator or "any",
         )
 
+    def get_prices(self, *, service: str = OPENAI_SERVICE_CODE) -> dict:
+        payload = {"api_key": self.api_key, "action": "getPrices", "service": service}
+        response = self.session.get(self.base_url, params=payload, timeout=self.timeout)
+        data = self._json_response(response)
+        if not data:
+            text = str(getattr(response, "text", "") or "").strip()
+            if getattr(response, "ok", True) is False or self._is_error_text(text):
+                raise HeroSmsError(text or f"HTTP {getattr(response, 'status_code', 'unknown')}")
+            raise HeroSmsError(text or "getPrices returned empty response")
+        title = str(data.get("title") or data.get("error") or data.get("message") or "").strip()
+        details = str(data.get("details") or "").strip()
+        if title:
+            raise HeroSmsError(f"{title}{': ' + details if details else ''}")
+        return data
+
     def get_status(self, activation_id: str) -> str:
         return self._request("getStatus", id=str(activation_id or "").strip())
 

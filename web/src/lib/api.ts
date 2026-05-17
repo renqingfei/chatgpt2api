@@ -215,13 +215,15 @@ export type RegisterConfig = {
     service: string;
     country: number;
     country_pool: number[];
+    country_blacklist: number[];
     operator: string;
     wait_timeout: number;
     poll_interval: number;
     reuse_activation_id: string;
     reuse_phone: string;
     auto_buy: boolean;
-    max_price_usd: number;
+    min_price_usd: number | string;
+    max_price_usd: number | string;
     cancel_on_send_fail: boolean;
   };
   proxy: string;

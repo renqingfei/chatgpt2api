@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 REGISTER_CARD = ROOT / "web" / "src" / "app" / "register" / "components" / "register-card.tsx"
 SETTINGS_STORE = ROOT / "web" / "src" / "app" / "settings" / "store.ts"
 CODEX_POC = ROOT / "scripts" / "codex_oauth_poc.py"
+DEFAULT_COUNTRY_POOL = [6, 117, 31, 33, 2, 39, 48, 37, 13, 40, 15, 8, 129, 32, 86, 173, 43, 49, 34, 7, 85, 27, 172, 63, 56, 177, 54, 24, 1, 46, 175, 14, 67, 83, 59, 187, 36]
 
 
 class RegisterHeroSmsConfigTests(unittest.TestCase):
@@ -22,14 +23,16 @@ class RegisterHeroSmsConfigTests(unittest.TestCase):
                 "enabled": False,
                 "api_key": "",
                 "service": "dr",
-                "country": 16,
-                "country_pool": [16, 187, 10, 36],
+                "country": 6,
+                "country_pool": DEFAULT_COUNTRY_POOL,
+                "country_blacklist": [16, 10, 4],
                 "operator": "any",
                 "wait_timeout": 30,
                 "poll_interval": 5,
                 "reuse_activation_id": "",
                 "reuse_phone": "",
                 "auto_buy": True,
+                "min_price_usd": 0.0,
                 "max_price_usd": 0.03,
                 "cancel_on_send_fail": True,
             },
@@ -46,12 +49,14 @@ class RegisterHeroSmsConfigTests(unittest.TestCase):
                     "service": "",
                     "country": "187",
                     "country_pool": ["", "36", "187", "bad", 36],
+                    "country_blacklist": ["16", "36", "bad", 16],
                     "operator": "",
                     "wait_timeout": "120",
                     "poll_interval": "2",
                     "reuse_activation_id": "  12345 ",
                     "reuse_phone": " +84901234567 ",
                     "auto_buy": False,
+                    "min_price_usd": "0.04",
                     "max_price_usd": "0.025",
                     "cancel_on_send_fail": False,
                 }
@@ -62,13 +67,15 @@ class RegisterHeroSmsConfigTests(unittest.TestCase):
         self.assertEqual(cfg["hero_sms"]["api_key"], "hero-key")
         self.assertEqual(cfg["hero_sms"]["service"], "dr")
         self.assertEqual(cfg["hero_sms"]["country"], 187)
-        self.assertEqual(cfg["hero_sms"]["country_pool"], [36, 187])
+        self.assertEqual(cfg["hero_sms"]["country_pool"], [187])
+        self.assertEqual(cfg["hero_sms"]["country_blacklist"], [16, 10, 4, 36])
         self.assertEqual(cfg["hero_sms"]["operator"], "any")
         self.assertEqual(cfg["hero_sms"]["wait_timeout"], 30)
         self.assertEqual(cfg["hero_sms"]["poll_interval"], 2)
         self.assertEqual(cfg["hero_sms"]["reuse_activation_id"], "")
         self.assertEqual(cfg["hero_sms"]["reuse_phone"], "")
         self.assertEqual(cfg["hero_sms"]["auto_buy"], True)
+        self.assertEqual(cfg["hero_sms"]["min_price_usd"], 0.025)
         self.assertEqual(cfg["hero_sms"]["max_price_usd"], 0.025)
         self.assertEqual(cfg["hero_sms"]["cancel_on_send_fail"], True)
 
@@ -78,6 +85,7 @@ class RegisterHeroSmsConfigTests(unittest.TestCase):
         self.assertIn("HeroSMS 接码配置", source)
         self.assertIn("setHeroSmsField", source)
         self.assertIn("config.hero_sms.api_key", source)
+        self.assertIn("config.hero_sms.min_price_usd", source)
         self.assertIn("config.hero_sms.max_price_usd", source)
         self.assertIn("自动轮询国家", source)
         self.assertNotIn('setHeroSmsField("country"', source)
@@ -97,7 +105,9 @@ class RegisterHeroSmsConfigTests(unittest.TestCase):
         self.assertIn("setRegisterHeroSmsField", source)
         self.assertIn("normalizeRegisterHeroSmsForSave", source)
         self.assertIn("hero_sms: normalizeRegisterHeroSmsForSave(registerConfig.hero_sms)", source)
+        self.assertIn("min_price_usd", source)
         self.assertIn("max_price_usd", source)
+        self.assertNotIn('"max_price_usd"]', source)
         self.assertIn("startCodexRegister", source)
 
     def test_codex_poc_reads_hero_sms_config_without_printing_key(self) -> None:

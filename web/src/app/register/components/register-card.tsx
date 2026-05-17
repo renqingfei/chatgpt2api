@@ -128,17 +128,21 @@ export function RegisterCard() {
                 启用
               </label>
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
               <div className="space-y-2 md:col-span-2">
                 <label className="text-sm text-stone-700">HeroSMS API Key</label>
                 <Input value={config.hero_sms.api_key} onChange={(event) => setHeroSmsField("api_key", event.target.value)} placeholder="HeroSMS API key" className="h-10 rounded-xl border-stone-200 bg-white font-mono text-xs" disabled={config.enabled} />
               </div>
               <div className="space-y-2">
+                <label className="text-sm text-stone-700">单号最低价 USD</label>
+                <Input value={String(config.hero_sms.min_price_usd || "")} onChange={(event) => setHeroSmsField("min_price_usd", event.target.value)} placeholder="0.04" className="h-10 rounded-xl border-stone-200 bg-white" disabled={config.enabled} />
+              </div>
+              <div className="space-y-2">
                 <label className="text-sm text-stone-700">单号最高价 USD</label>
                 <Input value={String(config.hero_sms.max_price_usd || "")} onChange={(event) => setHeroSmsField("max_price_usd", event.target.value)} placeholder="0.03" className="h-10 rounded-xl border-stone-200 bg-white" disabled={config.enabled} />
               </div>
-              <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs leading-5 text-stone-500 md:col-span-3">
-                内置策略：service=<code>dr</code>、operator=<code>any</code>、国家池自动轮询 <code>16 → 187 → 10 → 36</code>，短信最多等待 30 秒，收不到码立即 cancel 当前 activation，不堵后续线程。
+              <div className="rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs leading-5 text-stone-500 md:col-span-4">
+                内置策略：service=<code>dr</code>、operator 自动按价格表选择，先过滤低于最低价和高于最高价的候选，再轮询扩展国家池；黑名单排除英国 <code>16</code>、fraud 高发 <code>10</code>、本轮无短信 <code>4</code>，短信最多等待 30 秒，收不到码立即 cancel 当前 activation，不堵后续线程。
               </div>
             </div>
           </div>

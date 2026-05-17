@@ -35,6 +35,9 @@ export const PAGE_SIZE_OPTIONS = ["50", "100", "200"] as const;
 
 export type PageSizeOption = (typeof PAGE_SIZE_OPTIONS)[number];
 
+const DEFAULT_HERO_SMS_COUNTRY_POOL = [6, 117, 31, 33, 2, 39, 48, 37, 13, 40, 15, 8, 129, 32, 86, 173, 43, 49, 34, 7, 85, 27, 172, 63, 56, 177, 54, 24, 1, 46, 175, 14, 67, 83, 59, 187, 36];
+const DEFAULT_HERO_SMS_COUNTRY_BLACKLIST = [16, 10, 4];
+
 function normalizeConfig(config: SettingsConfig): SettingsConfig {
   const backup = typeof config.backup === "object" && config.backup
     ? config.backup as BackupSettings
@@ -127,22 +130,32 @@ function normalizeFiles(items: CPARemoteFile[]) {
 }
 
 function normalizeRegisterHeroSmsForSave(heroSms: RegisterConfig["hero_sms"]): RegisterConfig["hero_sms"] {
+  const countryBlacklist = Array.isArray(heroSms.country_blacklist) && heroSms.country_blacklist.length > 0
+    ? heroSms.country_blacklist.map((item) => Number(item)).filter((item) => item > 0)
+    : DEFAULT_HERO_SMS_COUNTRY_BLACKLIST;
+  const blacklist = Array.from(new Set([...DEFAULT_HERO_SMS_COUNTRY_BLACKLIST, ...countryBlacklist]));
   const countryPool = Array.isArray(heroSms.country_pool) && heroSms.country_pool.length > 0
     ? heroSms.country_pool.map((item) => Number(item)).filter((item) => item > 0)
-    : [16, 187, 10, 36];
+    : DEFAULT_HERO_SMS_COUNTRY_POOL;
+  const filteredCountryPool = Array.from(new Set(countryPool)).filter((item) => !blacklist.includes(item));
+  const finalCountryPool = filteredCountryPool.length > 0 ? filteredCountryPool : DEFAULT_HERO_SMS_COUNTRY_POOL.filter((item) => !blacklist.includes(item));
+  const maxPriceUsd = Math.max(0.001, Number(heroSms.max_price_usd) || 0.03);
+  const minPriceUsd = Math.min(maxPriceUsd, Math.max(0, Number(heroSms.min_price_usd) || 0));
 
   return {
     ...heroSms,
     service: "dr",
-    country: Number(heroSms.country) || countryPool[0] || 16,
-    country_pool: Array.from(new Set(countryPool)),
+    country: finalCountryPool[0] || 6,
+    country_pool: finalCountryPool,
+    country_blacklist: blacklist,
     operator: "any",
     wait_timeout: Math.min(30, Math.max(1, Number(heroSms.wait_timeout) || 30)),
     poll_interval: Math.min(5, Math.max(1, Number(heroSms.poll_interval) || 5)),
     reuse_activation_id: "",
     reuse_phone: "",
     auto_buy: true,
-    max_price_usd: Math.max(0.001, Number(heroSms.max_price_usd) || 0.03),
+    min_price_usd: minPriceUsd,
+    max_price_usd: maxPriceUsd,
     cancel_on_send_fail: true,
   };
 }
@@ -610,7 +623,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   setRegisterHeroSmsField: (key, value) => {
     set((state) => {
       if (!state.registerConfig) return {};
-      const numericFields = new Set(["country", "wait_timeout", "poll_interval", "max_price_usd"]);
+      const numericFields = new Set(["country", "wait_timeout", "poll_interval"]);
       return {
         registerConfig: {
           ...state.registerConfig,

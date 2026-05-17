@@ -21,15 +21,17 @@ from requests.adapters import HTTPAdapter
 
 from services.account_service import account_service
 from services.hero_sms_service import HeroSmsClient
-from services.phone_broker_service import reserve_phone as resolve_activation
+from services.phone_broker_service import mark_country_bad, reserve_phone as resolve_activation
 from services.register import domain_reputation, mail_provider
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 base_dir = Path(__file__).resolve().parent
-HERO_SMS_DEFAULT_COUNTRY_POOL = [16, 187, 10, 36]
+HERO_SMS_DEFAULT_COUNTRY_POOL = [6, 117, 31, 33, 2, 39, 48, 37, 13, 40, 15, 8, 129, 32, 86, 173, 43, 49, 34, 7, 85, 27, 172, 63, 56, 177, 54, 24, 1, 46, 175, 14, 67, 83, 59, 187, 36]
+HERO_SMS_DEFAULT_COUNTRY_BLACKLIST = [16, 10, 4]
 HERO_SMS_MAX_WAIT_TIMEOUT = 30
 HERO_SMS_MAX_POLL_INTERVAL = 5
 HERO_SMS_CANCEL_RETRY_DELAYS = [95, 180]
+PASSWORD_VERIFY_RETRY_DELAYS = (1.5, 3.0, 6.0, 12.0, 0.0)
 config = {
     "mail": {
         "request_timeout": 30,
@@ -44,14 +46,16 @@ config = {
         "enabled": False,
         "api_key": "",
         "service": "dr",
-        "country": 16,
+        "country": 6,
         "country_pool": HERO_SMS_DEFAULT_COUNTRY_POOL,
+        "country_blacklist": HERO_SMS_DEFAULT_COUNTRY_BLACKLIST,
         "operator": "any",
         "wait_timeout": HERO_SMS_MAX_WAIT_TIMEOUT,
         "poll_interval": 5,
         "reuse_activation_id": "",
         "reuse_phone": "",
         "auto_buy": True,
+        "min_price_usd": 0.0,
         "max_price_usd": 0.03,
         "cancel_on_send_fail": True,
     },
@@ -60,14 +64,16 @@ default_hero_sms_config = {
     "enabled": False,
     "api_key": "",
     "service": "dr",
-    "country": 16,
+    "country": 6,
     "country_pool": HERO_SMS_DEFAULT_COUNTRY_POOL,
+    "country_blacklist": HERO_SMS_DEFAULT_COUNTRY_BLACKLIST,
     "operator": "any",
     "wait_timeout": HERO_SMS_MAX_WAIT_TIMEOUT,
     "poll_interval": 5,
     "reuse_activation_id": "",
     "reuse_phone": "",
     "auto_buy": True,
+    "min_price_usd": 0.0,
     "max_price_usd": 0.03,
     "cancel_on_send_fail": True,
 }
@@ -656,6 +662,14 @@ def _hero_sms_poll_interval(hero_sms: dict) -> float:
     return _bounded_positive_float(hero_sms.get("poll_interval"), default=HERO_SMS_MAX_POLL_INTERVAL, upper=HERO_SMS_MAX_POLL_INTERVAL)
 
 
+def _password_verify_retryable(resp) -> bool:
+    if getattr(resp, "status_code", None) != 401:
+        return False
+    data = _response_json(resp)
+    error = data.get("error") if isinstance(data, dict) else {}
+    return str((error or {}).get("code") or "").strip() == "invalid_username_or_password"
+
+
 def _hero_sms_cancel_retry_delays(hero_sms: dict) -> list[float]:
     raw = hero_sms.get("cancel_retry_delays") if isinstance(hero_sms, dict) else None
     values = raw if isinstance(raw, (list, tuple)) else HERO_SMS_CANCEL_RETRY_DELAYS
@@ -871,7 +885,18 @@ class PlatformRegistrar:
         if not api_key:
             raise RuntimeError("Codex OAuth 需要 add_phone，但 HeroSMS API Key 为空")
 
-        activation = resolve_activation(hero_sms)
+        country_pool = hero_sms.get("country_pool") if isinstance(hero_sms.get("country_pool"), list) else []
+        country_blacklist = hero_sms.get("country_blacklist") if isinstance(hero_sms.get("country_blacklist"), list) else []
+        step(
+            index,
+            "HeroSMS 开始买号: "
+            f"service={hero_sms.get('service') or 'dr'}, "
+            f"min_price_usd={hero_sms.get('min_price_usd') or 0}, "
+            f"max_price_usd={hero_sms.get('max_price_usd') or 0.03}, "
+            f"pool_head={(country_pool or [hero_sms.get('country') or 6])[:8]}, "
+            f"blacklist={country_blacklist}",
+        )
+        activation = resolve_activation(hero_sms, on_event=lambda message: step(index, message))
         phone_number = _e164_phone(str(activation.phone or ""))
         country_note = f", country={activation.country}" if getattr(activation, "country", None) else ""
         step(index, f"add_phone 使用 HeroSMS activation={activation.activation_id}{country_note}, phone=***{phone_number[-4:]}")
@@ -904,6 +929,7 @@ class PlatformRegistrar:
                 retry_statuses=(429, 500, 502, 503, 504),
             )
             if send_resp is None or send_resp.status_code != 200:
+                mark_country_bad(getattr(activation, "country", None), "add_phone_send_failed")
                 cancel_activation("add_phone_send 失败")
                 raise RuntimeError(error or f"add_phone_send_http_{getattr(send_resp, 'status_code', 'unknown')}{_response_error_detail(send_resp)}")
             phone_verify_url = _continue_url_from_auth_payload(_response_json(send_resp)) or f"{auth_base}/phone-verification"
@@ -925,7 +951,9 @@ class PlatformRegistrar:
 
             try:
                 code = client.poll_code(str(activation.activation_id), timeout=_hero_sms_wait_timeout(hero_sms))
-            except Exception:
+            except Exception as exc:
+                if "sms_code_timeout" in str(exc):
+                    mark_country_bad(getattr(activation, "country", None), "sms_code_timeout")
                 cancel_activation("等待 HeroSMS 验证码失败")
                 raise
             step(index, f"HeroSMS 收到 add_phone 验证码: {code}")
@@ -1046,15 +1074,29 @@ class PlatformRegistrar:
             step(index, "authorize 已返回 OAuth code，但 token 换取失败，继续尝试密码校验", "yellow")
         password_referer = f"{auth_base}/log-in/password"
         if profile.get("kind") == "codex":
-            if self._login_username_required(resp):
+            if self._login_username_required(resp) or self._login_password_page_loaded(resp):
                 password_referer = self._submit_login_username(email, str(getattr(resp, "url", "") or auth_base), index)
-            elif self._login_password_page_loaded(resp):
-                password_page = str(getattr(resp, "url", "") or (getattr(resp, "headers", {}) or {}).get("Location") or "").strip()
-                if password_page:
-                    password_referer = urljoin(auth_base, password_page)
-        headers = self._json_headers(password_referer)
-        headers["openai-sentinel-token"] = build_sentinel_token(self.session, self.device_id, "password_verify")
-        resp, error = request_with_local_retry(self.session, "post", f"{auth_base}/api/accounts/password/verify", json={"password": password}, headers=headers, allow_redirects=False, verify=False)
+        resp = None
+        error = ""
+        for attempt, delay in enumerate(PASSWORD_VERIFY_RETRY_DELAYS, start=1):
+            headers = self._json_headers(password_referer)
+            headers["openai-sentinel-token"] = build_sentinel_token(self.session, self.device_id, "password_verify")
+            resp, error = request_with_local_retry(
+                self.session,
+                "post",
+                f"{auth_base}/api/accounts/password/verify",
+                json={"password": password},
+                headers=headers,
+                allow_redirects=False,
+                verify=False,
+            )
+            if resp is not None and resp.status_code == 200:
+                break
+            if resp is not None and _password_verify_retryable(resp) and delay > 0:
+                step(index, f"password_verify 返回 401，等待 {delay:g}s 后重试", "yellow")
+                time.sleep(delay)
+                continue
+            break
         if resp is None or resp.status_code != 200:
             raise RuntimeError(error or f"password_verify_http_{getattr(resp, 'status_code', 'unknown')}{_response_error_detail(resp)}")
         step(index, "密码校验完成")

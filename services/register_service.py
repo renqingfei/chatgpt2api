@@ -61,6 +61,14 @@ def _positive_float(value, default: float) -> float:
     return parsed if parsed > 0 else default
 
 
+def _non_negative_float(value, default: float = 0.0) -> float:
+    try:
+        parsed = float(value)
+    except Exception:
+        return default
+    return parsed if parsed >= 0 else default
+
+
 def _positive_int_list(value, default: list[int]) -> list[int]:
     items = []
 
@@ -86,17 +94,30 @@ def _normalize_hero_sms(raw: object) -> dict:
     source = raw if isinstance(raw, dict) else {}
     service = str(source.get("service") or defaults.get("service") or "dr").strip().lower() or "dr"
     operator = str(source.get("operator") or defaults.get("operator") or "any").strip().lower() or "any"
-    default_country_pool = _positive_int_list(defaults.get("country_pool"), [16, 187, 10, 36])
+    default_country_blacklist = _positive_int_list(defaults.get("country_blacklist"), [16, 10, 4])
+    country_blacklist = _positive_int_list(source.get("country_blacklist"), default_country_blacklist)
+    country_blacklist = list(dict.fromkeys([*default_country_blacklist, *country_blacklist]))
+    default_country_pool = _positive_int_list(defaults.get("country_pool"), [6, 117, 31, 33, 2, 39, 48, 37, 13, 40, 15, 8, 129, 32, 86, 173, 43, 49, 34, 7, 85, 27, 172, 63, 56, 177, 54, 24, 1, 46, 175, 14, 67, 83, 59, 187, 36])
+    default_country_pool = [item for item in default_country_pool if item not in country_blacklist] or [6, 117, 31, 33, 2, 39, 48, 37, 13, 40, 15, 8, 129, 32, 86, 173, 43, 49, 34, 7, 85, 27, 172, 63, 56, 177, 54, 24, 1, 46, 175, 14, 67, 83, 59, 187, 36]
     country = _positive_int(source.get("country"), int(defaults.get("country") or default_country_pool[0]))
     country_pool = _positive_int_list(source.get("country_pool"), default_country_pool)
     if "country_pool" not in source and "country" in source:
         country_pool = [country, *[item for item in country_pool if item != country]]
+    country_pool = [item for item in country_pool if item not in country_blacklist]
+    if not country_pool:
+        country_pool = [item for item in default_country_pool if item not in country_blacklist] or list(default_country_pool)
+    if country in country_blacklist or country not in country_pool:
+        country = country_pool[0]
+    max_price_usd = _positive_float(source.get("max_price_usd"), float(defaults.get("max_price_usd") or 0.03))
+    min_price_usd = _non_negative_float(source.get("min_price_usd"), float(defaults.get("min_price_usd") or 0.0))
+    min_price_usd = min(min_price_usd, max_price_usd)
     return {
         "enabled": bool(source.get("enabled") if "enabled" in source else defaults.get("enabled", False)),
         "api_key": str(source.get("api_key") or defaults.get("api_key") or "").strip(),
         "service": service,
         "country": country,
         "country_pool": country_pool,
+        "country_blacklist": country_blacklist,
         "operator": operator,
         "wait_timeout": min(
             HERO_SMS_MAX_WAIT_TIMEOUT,
@@ -106,7 +127,8 @@ def _normalize_hero_sms(raw: object) -> dict:
         "reuse_activation_id": "",
         "reuse_phone": "",
         "auto_buy": True,
-        "max_price_usd": _positive_float(source.get("max_price_usd"), float(defaults.get("max_price_usd") or 0.03)),
+        "min_price_usd": min_price_usd,
+        "max_price_usd": max_price_usd,
         "cancel_on_send_fail": True,
     }
 

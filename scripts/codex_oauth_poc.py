@@ -44,6 +44,7 @@ def _announce_hero_sms_config() -> None:
         f"service={hero_sms.get('service') or 'dr'}, "
         f"country_pool={country_pool or [hero_sms.get('country') or 16]}, "
         f"operator={hero_sms.get('operator') or 'any'}, "
+        f"min_price_usd={hero_sms.get('min_price_usd') or 0}, "
         f"max_price_usd={hero_sms.get('max_price_usd') or 0.03}"
     )
 

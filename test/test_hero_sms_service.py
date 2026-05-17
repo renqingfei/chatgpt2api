@@ -79,6 +79,20 @@ class HeroSmsServiceTests(unittest.TestCase):
         with self.assertRaisesRegex(HeroSmsError, "BAD_KEY"):
             client.get_balance()
 
+    def test_get_prices_returns_json_price_table(self):
+        from services.hero_sms_service import HeroSmsClient
+
+        price_table = {"117": {"any": {"cost": 0.08, "count": 3}}}
+        session = FakeSession([FakeResponse(json_data=price_table)])
+        client = HeroSmsClient("hero-key", session=session)
+
+        prices = client.get_prices(service="dr")
+
+        self.assertEqual(prices, price_table)
+        call = session.calls[0]
+        self.assertEqual(call["params"]["action"], "getPrices")
+        self.assertEqual(call["params"]["service"], "dr")
+
     def test_resolve_activation_reuses_existing_id_and_phone_without_buying_number(self):
         from services.hero_sms_service import resolve_activation
 
@@ -115,7 +129,7 @@ class HeroSmsServiceTests(unittest.TestCase):
                 "auto_buy": True,
                 "service": "dr",
                 "operator": "any",
-                "country_pool": [10, 16],
+                "country_pool": [36, 187],
                 "max_price_usd": 0.05,
             },
             session=session,
@@ -123,9 +137,30 @@ class HeroSmsServiceTests(unittest.TestCase):
 
         self.assertEqual(activation.activation_id, "67890")
         self.assertEqual(activation.phone, "447700900123")
-        self.assertEqual(activation.country, 16)
-        self.assertEqual([call["params"]["country"] for call in session.calls], [10, 16])
+        self.assertEqual(activation.country, 187)
+        self.assertEqual([call["params"]["country"] for call in session.calls], [36, 187])
         self.assertEqual([call["params"]["maxPrice"] for call in session.calls], [0.05, 0.05])
+
+    def test_reserve_phone_skips_blacklisted_countries(self):
+        from services.phone_broker_service import reserve_phone
+
+        session = FakeSession([FakeResponse("ACCESS_NUMBER:67891:17705550123")])
+
+        activation = reserve_phone(
+            {
+                "api_key": "hero-key",
+                "service": "dr",
+                "operator": "any",
+                "country_pool": [16, 187],
+                "country_blacklist": [16],
+                "max_price_usd": "0.05",
+            },
+            session=session,
+        )
+
+        self.assertEqual(activation.activation_id, "67891")
+        self.assertEqual(activation.country, 187)
+        self.assertEqual([call["params"]["country"] for call in session.calls], [187])
 
 
 if __name__ == "__main__":

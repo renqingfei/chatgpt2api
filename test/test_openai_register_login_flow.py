@@ -290,7 +290,7 @@ class OpenAIRegisterLoginFlowTests(unittest.TestCase):
         redirect_call_index = next(index for index, (_, url, _) in enumerate(session.calls) if "/api/oauth/oauth2/auth" in url)
         self.assertLess(redirect_call_index, password_call_index)
 
-    def test_codex_login_does_not_rebind_username_after_password_page_loaded(self):
+    def test_codex_login_submits_username_after_password_page_loaded(self):
         class CodexLoginPageRedirectSession:
             def __init__(self):
                 self.calls = []
@@ -359,9 +359,165 @@ class OpenAIRegisterLoginFlowTests(unittest.TestCase):
         password_verify_call_index = next(index for index, (_, url, _) in enumerate(session.calls) if "/api/accounts/password/verify" in url)
         self.assertLess(accounts_login_call_index, password_page_call_index)
         self.assertLess(password_page_call_index, password_verify_call_index)
-        self.assertFalse(any("/api/accounts/authorize/continue" in url for _, url, _ in session.calls))
+        authorize_continue_call_index = next(index for index, (_, url, _) in enumerate(session.calls) if "/api/accounts/authorize/continue" in url)
+        self.assertLess(password_page_call_index, authorize_continue_call_index)
+        self.assertLess(authorize_continue_call_index, password_verify_call_index)
         password_call = next(call for call in session.calls if "/api/accounts/password/verify" in call[1])
         self.assertEqual(password_call[2]["headers"]["referer"], "https://auth.openai.com/log-in/password")
+
+    def test_codex_password_verify_retries_transient_invalid_password_response(self):
+        class CodexPasswordRetrySession:
+            def __init__(self):
+                self.calls = []
+                self.cookies = mock.Mock()
+                self.password_attempts = 0
+
+            def request(self, method, url, **kwargs):
+                self.calls.append((method.upper(), url, kwargs))
+                if "/oauth/authorize" in url:
+                    return FakeResponse(
+                        status_code=302,
+                        headers={"Location": "https://auth.openai.com/api/oauth/oauth2/auth?login_challenge=lc"},
+                        url=url,
+                    )
+                if "/api/oauth/oauth2/auth" in url:
+                    return FakeResponse(
+                        status_code=302,
+                        headers={"Location": "https://auth.openai.com/api/accounts/login?login_challenge=lc"},
+                        url=url,
+                    )
+                if "/api/accounts/login" in url:
+                    return FakeResponse(
+                        status_code=302,
+                        headers={"Location": "https://auth.openai.com/log-in/password"},
+                        url=url,
+                    )
+                if "/log-in/password" in url:
+                    return FakeResponse(status_code=200, url=url)
+                if "/api/accounts/authorize/continue" in url:
+                    return FakeResponse(
+                        status_code=200,
+                        json_data={"continue_url": "https://auth.openai.com/log-in/password", "page": {"type": "login_password"}},
+                        url=url,
+                    )
+                if "/api/accounts/password/verify" in url:
+                    self.password_attempts += 1
+                    if self.password_attempts == 1:
+                        return FakeResponse(
+                            status_code=401,
+                            json_data={"error": {"code": "invalid_username_or_password"}},
+                            url=url,
+                        )
+                    return FakeResponse(
+                        status_code=200,
+                        json_data={
+                            "continue_url": "http://localhost:1455/auth/callback?code=codex123&state=st&scope=openid",
+                            "page": {"type": "done"},
+                        },
+                        url=url,
+                    )
+                raise AssertionError(f"unexpected request {method} {url}")
+
+        session = CodexPasswordRetrySession()
+        registrar = openai_register.PlatformRegistrar.__new__(openai_register.PlatformRegistrar)
+        registrar.session = session
+        registrar.device_id = "device-1"
+        expected_tokens = {"access_token": "access", "refresh_token": "refresh", "id_token": "id"}
+
+        with (
+            mock.patch.object(openai_register, "exchange_oauth_callback_params", return_value=expected_tokens, create=True),
+            mock.patch.object(openai_register, "build_sentinel_token", return_value="sentinel"),
+            mock.patch.object(openai_register.time, "sleep") as sleep,
+            mock.patch.object(openai_register, "step"),
+        ):
+            tokens = registrar._login_and_exchange_tokens(
+                "user@example.com",
+                "Password1!",
+                {},
+                1,
+                profile=openai_register.codex_oauth_profile,
+            )
+
+        self.assertEqual(tokens, expected_tokens)
+        self.assertEqual(session.password_attempts, 2)
+        sleep.assert_called_once()
+
+    def test_codex_password_verify_keeps_retrying_account_propagation_401(self):
+        class SlowPropagationSession:
+            def __init__(self):
+                self.calls = []
+                self.cookies = mock.Mock()
+                self.password_attempts = 0
+
+            def request(self, method, url, **kwargs):
+                self.calls.append((method.upper(), url, kwargs))
+                if "/oauth/authorize" in url:
+                    return FakeResponse(
+                        status_code=302,
+                        headers={"Location": "https://auth.openai.com/api/oauth/oauth2/auth?login_challenge=lc"},
+                        url=url,
+                    )
+                if "/api/oauth/oauth2/auth" in url:
+                    return FakeResponse(
+                        status_code=302,
+                        headers={"Location": "https://auth.openai.com/api/accounts/login?login_challenge=lc"},
+                        url=url,
+                    )
+                if "/api/accounts/login" in url:
+                    return FakeResponse(
+                        status_code=302,
+                        headers={"Location": "https://auth.openai.com/log-in/password"},
+                        url=url,
+                    )
+                if "/log-in/password" in url:
+                    return FakeResponse(status_code=200, url=url)
+                if "/api/accounts/authorize/continue" in url:
+                    return FakeResponse(
+                        status_code=200,
+                        json_data={"continue_url": "https://auth.openai.com/log-in/password", "page": {"type": "login_password"}},
+                        url=url,
+                    )
+                if "/api/accounts/password/verify" in url:
+                    self.password_attempts += 1
+                    if self.password_attempts < 4:
+                        return FakeResponse(
+                            status_code=401,
+                            json_data={"error": {"code": "invalid_username_or_password"}},
+                            url=url,
+                        )
+                    return FakeResponse(
+                        status_code=200,
+                        json_data={
+                            "continue_url": "http://localhost:1455/auth/callback?code=codex123&state=st&scope=openid",
+                            "page": {"type": "done"},
+                        },
+                        url=url,
+                    )
+                raise AssertionError(f"unexpected request {method} {url}")
+
+        session = SlowPropagationSession()
+        registrar = openai_register.PlatformRegistrar.__new__(openai_register.PlatformRegistrar)
+        registrar.session = session
+        registrar.device_id = "device-1"
+        expected_tokens = {"access_token": "access", "refresh_token": "refresh", "id_token": "id"}
+
+        with (
+            mock.patch.object(openai_register, "exchange_oauth_callback_params", return_value=expected_tokens, create=True),
+            mock.patch.object(openai_register, "build_sentinel_token", return_value="sentinel"),
+            mock.patch.object(openai_register.time, "sleep") as sleep,
+            mock.patch.object(openai_register, "step"),
+        ):
+            tokens = registrar._login_and_exchange_tokens(
+                "user@example.com",
+                "Password1!",
+                {},
+                1,
+                profile=openai_register.codex_oauth_profile,
+            )
+
+        self.assertEqual(tokens, expected_tokens)
+        self.assertEqual(session.password_attempts, 4)
+        self.assertEqual(sleep.call_count, 3)
 
     def test_codex_add_phone_uses_hero_sms_reuse_send_and_validate(self):
         class AddPhoneSession:
