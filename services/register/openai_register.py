@@ -979,8 +979,13 @@ class PlatformRegistrar:
                 return tokens
             step(index, "authorize 已返回 OAuth code，但 token 换取失败，继续尝试密码校验", "yellow")
         password_referer = f"{auth_base}/log-in/password"
-        if profile.get("kind") == "codex" and (self._login_username_required(resp) or self._login_password_page_loaded(resp)):
-            password_referer = self._submit_login_username(email, str(getattr(resp, "url", "") or auth_base), index)
+        if profile.get("kind") == "codex":
+            if self._login_username_required(resp):
+                password_referer = self._submit_login_username(email, str(getattr(resp, "url", "") or auth_base), index)
+            elif self._login_password_page_loaded(resp):
+                password_page = str(getattr(resp, "url", "") or (getattr(resp, "headers", {}) or {}).get("Location") or "").strip()
+                if password_page:
+                    password_referer = urljoin(auth_base, password_page)
         headers = self._json_headers(password_referer)
         headers["openai-sentinel-token"] = build_sentinel_token(self.session, self.device_id, "password_verify")
         resp, error = request_with_local_retry(self.session, "post", f"{auth_base}/api/accounts/password/verify", json={"password": password}, headers=headers, allow_redirects=False, verify=False)
