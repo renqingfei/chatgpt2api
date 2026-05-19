@@ -902,6 +902,7 @@ def exchange_platform_tokens(session: requests.Session, device_id: str, code_ver
 
 class PlatformRegistrar:
     def __init__(self, proxy: str = "") -> None:
+        self._proxy = proxy
         self.session = create_session(proxy)
         self.device_id = str(uuid.uuid4())
 
@@ -1372,6 +1373,10 @@ class PlatformRegistrar:
             if _oauth_profile(profile).get("kind") == "platform":
                 tokens = self._tokens_from_create_account_callback(platform_code_verifier, create_account_continue_url, index)
             if not tokens:
+                self.session.close()
+                time.sleep(1.5)
+                self.session = create_session(self._proxy)
+                step(index, "注册会话完成，创建新会话进行登录")
                 tokens = self._login_and_exchange_tokens(email, password, mailbox, index, profile=profile)
             result = {
                 "email": email,
